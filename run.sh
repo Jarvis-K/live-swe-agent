@@ -3,10 +3,10 @@ set -e
 
 # Configuration
 CONFIG="${CONFIG:-config/livesweagent_swebench.yaml}"
-MODEL="${MODEL:-claude-sonnet-4}"
+MODEL="${MODEL:-openai/gpt-5.2}"
 SUBSET="${SUBSET:-verified}"
 SPLIT="${SPLIT:-test}"
-SLICE="${SLICE:-0:3}"
+SLICE="${SLICE:-0:5}"
 OUTPUT="${OUTPUT:-./results}"
 WORKERS="${WORKERS:-1}"
 
