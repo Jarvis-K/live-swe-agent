@@ -65,9 +65,3 @@ echo "Generation completed"
 echo "=========================================="
 echo "Results stored in: $OUTPUT"
 echo "Memory accumulated in: ./memory/"
-
-# Run evaluation unless skipped
-if [ "${SKIP_EVAL:-0}" != "1" ]; then
-    echo ""
-    ./run_eval.sh
-fi
