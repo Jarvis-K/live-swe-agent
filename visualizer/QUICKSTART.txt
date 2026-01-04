@@ -2,7 +2,7 @@ AGENT-ENVIRONMENT INTERACTION VISUALIZER
 =========================================
 
 Quick Start:
-1. cd /var/tmp/vibe-kanban/worktrees/75ed-visualize-the-in/live-swe-agent
+1. cd visualizer
 2. python3 serve.py
 3. Open browser to: http://localhost:8000/visualizer.html
 

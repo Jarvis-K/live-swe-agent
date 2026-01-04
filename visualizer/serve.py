@@ -27,7 +27,7 @@ class Handler(SimpleHTTPRequestHandler):
         else:
             super().do_GET()
 
-os.chdir('/var/tmp/vibe-kanban/worktrees/75ed-visualize-the-in/live-swe-agent')
+os.chdir(Path(__file__).parent)
 print('Server running at http://localhost:8000')
 print('Open http://localhost:8000/visualizer.html in your browser')
 HTTPServer(('', 8000), Handler).serve_forever()
