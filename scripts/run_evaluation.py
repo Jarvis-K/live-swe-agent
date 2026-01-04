@@ -12,7 +12,8 @@ def run_evaluation(
     split="test",
     max_workers=1,
     timeout=1800,
-    run_id="evaluation"
+    run_id="evaluation",
+    output_dir=None
 ):
     """Run SWE-bench evaluation harness."""
     predictions_file = Path(predictions_path)
@@ -39,6 +40,15 @@ def run_evaluation(
     print(f"Run ID: {run_id}")
     print("=" * 50)
     print()
+
+    # Change to output directory if specified
+    original_dir = None
+    if output_dir:
+        original_dir = Path.cwd()
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        import os
+        os.chdir(output_path)
 
     # Build evaluation command
     cmd = [
@@ -72,6 +82,11 @@ def run_evaluation(
     except KeyboardInterrupt:
         print("\n\nEvaluation interrupted by user")
         return False
+    finally:
+        # Restore original directory
+        if original_dir:
+            import os
+            os.chdir(original_dir)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run SWE-bench evaluation")
@@ -85,6 +100,8 @@ if __name__ == "__main__":
                         help="Timeout per instance in seconds")
     parser.add_argument("--run-id", default="evaluation",
                         help="Run ID for this evaluation")
+    parser.add_argument("--output-dir", default=None,
+                        help="Output directory for evaluation results")
 
     args = parser.parse_args()
 
@@ -94,7 +111,8 @@ if __name__ == "__main__":
         args.split,
         args.max_workers,
         args.timeout,
-        args.run_id
+        args.run_id,
+        args.output_dir
     )
 
     sys.exit(0 if success else 1)

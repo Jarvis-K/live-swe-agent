@@ -3,7 +3,7 @@ set -e
 
 # Configuration
 CONFIG="${CONFIG:-config/livesweagent_swebench.yaml}"
-MODEL="${MODEL:-openai/gpt-5.2}"
+MODEL="${MODEL:-openai/gpt-5.1-codex-mini}"
 SUBSET="${SUBSET:-verified}"
 SPLIT="${SPLIT:-test}"
 SLICE="${SLICE:-0:5}"
@@ -80,7 +80,8 @@ else
         --split "$SPLIT" \
         --max-workers "$WORKERS" \
         --timeout 1800 \
-        --run-id "$(basename $OUTPUT)"; then
+        --run-id "$(basename $OUTPUT)" \
+        --output-dir "$OUTPUT"; then
         echo ""
         echo "Evaluation completed successfully"
     else
