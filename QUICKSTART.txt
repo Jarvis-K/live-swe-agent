@@ -1,0 +1,18 @@
+AGENT-ENVIRONMENT INTERACTION VISUALIZER
+=========================================
+
+Quick Start:
+1. cd /var/tmp/vibe-kanban/worktrees/75ed-visualize-the-in/live-swe-agent
+2. python3 serve.py
+3. Open browser to: http://localhost:8000/visualizer.html
+
+What it does:
+- Reads trajectory files from /root/live-swe-agent/results/
+- Displays agent thoughts, actions, and environment outputs
+- Shows step-by-step interaction timeline
+- Allows selecting different issues to visualize
+
+Files created:
+- visualizer.html (5.1KB) - Web interface
+- serve.py (1.4KB) - HTTP server
+- README_VISUALIZER.md - Documentation

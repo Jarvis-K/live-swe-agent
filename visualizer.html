@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Agent-Environment Interaction Visualizer</title>
+<style>
+body{font-family:sans-serif;margin:20px;background:#f5f5f5}
+#controls{background:#fff;padding:15px;margin-bottom:20px;border-radius:5px;box-shadow:0 2px 4px rgba(0,0,0,0.1)}
+select,button{padding:8px;font-size:14px;margin-right:10px}
+#timeline{background:#fff;padding:20px;border-radius:5px;box-shadow:0 2px 4px rgba(0,0,0,0.1)}
+.step{border-left:3px solid #4CAF50;padding:15px;margin:15px 0;background:#fafafa;border-radius:3px}
+.step.error{border-left-color:#f44336}
+.step-header{font-weight:bold;color:#333;margin-bottom:10px;display:flex;justify-content:space-between}
+.thought{background:#e3f2fd;padding:10px;margin:10px 0;border-radius:3px;white-space:pre-wrap}
+.action{background:#fff3e0;padding:10px;margin:10px 0;border-radius:3px}
+.output{background:#f1f8e9;padding:10px;margin:10px 0;border-radius:3px;max-height:300px;overflow:auto;font-family:monospace;font-size:12px;white-space:pre-wrap}
+.label{font-size:11px;font-weight:bold;color:#666;text-transform:uppercase;margin-bottom:5px}
+.returncode{display:inline-block;padding:2px 8px;border-radius:3px;font-size:12px;font-weight:bold}
+.returncode.success{background:#4CAF50;color:#fff}
+.returncode.fail{background:#f44336;color:#fff}
+.info{background:#e8f5e9;padding:15px;margin-bottom:20px;border-radius:5px;border-left:4px solid #4CAF50}
+</style>
+</head>
+<body>
+<h1>Agent-Environment Interaction Visualizer</h1>
+<div id="controls">
+<label>Select Issue: </label>
+<select id="issueSelect"></select>
+<button onclick="loadIssue()">Load</button>
+<span id="status"></span>
+</div>
+<div id="info"></div>
+<div id="timeline"></div>
+
+<script>
+const resultsPath = '/root/live-swe-agent/results/';
+let issues = [];
+
+async function loadIssueList() {
+  try {
+    const response = await fetch('issues.json');
+    issues = await response.json();
+    const select = document.getElementById('issueSelect');
+    issues.forEach(issue => {
+      const opt = document.createElement('option');
+      opt.value = issue;
+      opt.textContent = issue;
+      select.appendChild(opt);
+    });
+  } catch(e) {
+    document.getElementById('status').textContent = 'Error loading issues list';
+  }
+}
+
+async function loadIssue() {
+  const issue = document.getElementById('issueSelect').value;
+  if (!issue) return;
+
+  document.getElementById('status').textContent = 'Loading...';
+  try {
+    const response = await fetch(`trajectories/${issue}.traj.json`);
+    const data = await response.json();
+    renderTrajectory(data);
+    document.getElementById('status').textContent = 'Loaded';
+  } catch(e) {
+    document.getElementById('status').textContent = 'Error: ' + e.message;
+  }
+}
+
+function renderTrajectory(data) {
+  const info = data.info || {};
+  const messages = data.messages || [];
+
+  document.getElementById('info').innerHTML = `
+    <div class="info">
+      <strong>Exit Status:</strong> ${info.exit_status || 'N/A'}<br>
+      <strong>API Calls:</strong> ${info.model_stats?.api_calls || 'N/A'}<br>
+      <strong>Cost:</strong> $${info.model_stats?.instance_cost?.toFixed(4) || 'N/A'}
+    </div>
+  `;
+
+  const timeline = document.getElementById('timeline');
+  timeline.innerHTML = '<h2>Interaction Timeline</h2>';
+
+  let stepNum = 0;
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+
+    if (msg.role === 'assistant' && msg.content) {
+      stepNum++;
+      const thought = extractThought(msg.content);
+      const action = extractAction(msg.content);
+
+      const nextMsg = messages[i + 1];
+      const output = nextMsg?.role === 'user' ? extractOutput(nextMsg.content) : null;
+
+      const stepDiv = document.createElement('div');
+      stepDiv.className = 'step' + (output?.returncode !== 0 ? ' error' : '');
+      stepDiv.innerHTML = `
+        <div class="step-header">
+          <span>Step ${stepNum}</span>
+          ${output ? `<span class="returncode ${output.returncode === 0 ? 'success' : 'fail'}">Exit: ${output.returncode}</span>` : ''}
+        </div>
+        ${thought ? `<div class="label">Thought</div><div class="thought">${escapeHtml(thought)}</div>` : ''}
+        ${action ? `<div class="label">Action</div><div class="action"><code>${escapeHtml(action)}</code></div>` : ''}
+        ${output?.output ? `<div class="label">Output</div><div class="output">${escapeHtml(output.output)}</div>` : ''}
+      `;
+      timeline.appendChild(stepDiv);
+    }
+  }
+}
+
+function extractThought(content) {
+  const match = content.match(/THOUGHT:\s*([\s\S]*?)(?=```|$)/);
+  return match ? match[1].trim() : null;
+}
+
+function extractAction(content) {
+  const match = content.match(/```bash\s*([\s\S]*?)```/);
+  return match ? match[1].trim() : null;
+}
+
+function extractOutput(content) {
+  const rcMatch = content.match(/<returncode>(\d+)<\/returncode>/);
+  const outMatch = content.match(/<output>\s*([\s\S]*?)<\/output>/);
+  return {
+    returncode: rcMatch ? parseInt(rcMatch[1]) : null,
+    output: outMatch ? outMatch[1].trim() : null
+  };
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+loadIssueList();
+</script>
+</body>
+</html>
