@@ -136,6 +136,16 @@ agent:
     EOF
     ```
     </example_response>
+
+    ## Submission
+    When you've completed your work (reading, editing, testing), and cannot make further progress
+    issue exactly the following command:
+
+    ```bash
+    echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT && cd /testbed && git add -A && git diff --cached
+    ```
+
+    This command will submit your work.
   action_observation_template: |
     <returncode>{{output.returncode}}</returncode>
     {% if output.output | length < 10000 -%}
