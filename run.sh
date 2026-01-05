@@ -60,6 +60,10 @@ echo "Converting to predictions format..."
 python3 scripts/convert_to_predictions.py "$OUTPUT" "$MODEL"
 
 echo ""
+echo "Merging container artifacts to host..."
+python3 scripts/merge_container_artifacts.py
+
+echo ""
 echo "=========================================="
 echo "Generation completed"
 echo "=========================================="
