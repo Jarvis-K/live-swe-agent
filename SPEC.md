@@ -89,11 +89,14 @@ Four auto-generated tools enable the learning loop:
 - Create custom tools as needed for current task
 - Follow iterative THOUGHT → COMMAND → OBSERVATION loop
 
-#### At END of Each Trial:
-1. Determine outcome (success if tests pass, failure otherwise)
-2. Call `distill_experience()` to extract learnings from run log
-3. Call `write_experience()` to persist to memory
-4. Tools and experiences available for next issue
+#### At END of Each Trial (MANDATORY):
+1. **MUST** determine outcome (success if tests pass, failure otherwise)
+2. **MUST** call `distill_experience()` to extract learnings from run log
+3. **MUST** call `write_experience()` to persist to memory
+4. **MUST** generate task-specific tools if patterns emerge (e.g., repeated file operations, common debugging steps)
+5. Tools and experiences available for next issue
+
+**Critical**: Memory generation is NOT optional. Every trial must produce an experience record, even if the issue was not resolved. Failures are valuable learning opportunities.
 
 ### Memory Configuration
 
@@ -194,7 +197,31 @@ Agent is **encouraged to create custom tools** rather than rely solely on bash:
 - No raw logs or secrets
 - Treat as guidance, not ground truth
 
-## Two-Phase Execution Pipeline
+## Three-Phase Execution Pipeline
+
+### Phase 0: Testing & Validation (MANDATORY Before Full Run)
+**Purpose**: Verify that memory and tools provide measurable improvement
+
+1. **Select test subset**: Choose 5-10 representative issues from SWE-bench
+2. **Baseline run**: Execute agent WITHOUT memory/tools enabled
+   - Set `memory.enabled: false` in config
+   - Record success rate and average steps
+3. **Memory-augmented run**: Execute agent WITH memory/tools enabled
+   - Set `memory.enabled: true` in config
+   - Ensure memory tools are generated and used
+   - Record success rate and average steps
+4. **Validation criteria**:
+   - Memory-augmented run MUST show improvement in at least one metric:
+     - Higher success rate (primary metric)
+     - Fewer average steps to solution
+     - Better quality patches (fewer edge case failures)
+   - If no improvement, analyze why:
+     - Are experiences too generic?
+     - Are tools not being used?
+     - Is retrieval finding irrelevant experiences?
+5. **Iterate until validated**: Adjust memory generation, retrieval, or tool creation until improvement is demonstrated
+
+**Do NOT proceed to full run without demonstrating improvement on test subset.**
 
 ### Phase 1: Inference (Patch Generation)
 1. Load issue dataset (SWE-bench Verified/Lite/Pro)
@@ -203,14 +230,16 @@ Agent is **encouraged to create custom tools** rather than rely solely on bash:
    - **START**: Retrieve experiences, create memory tools
    - Execute agent in Docker container (THOUGHT → COMMAND → OBSERVATION)
    - Generate patch and trajectory
-   - **END**: Distill and persist new experience
+   - **END**: MANDATORY distill and persist new experience (even on failure)
 4. Convert trajectories to predictions format
+5. Verify all issues generated experience records
 
 ### Phase 2: Evaluation (Patch Testing)
 1. Load generated predictions
 2. Apply patches to repositories
 3. Run test suites in isolated Docker environments
 4. Generate `report.json` with pass/fail results
+5. Analyze which experiences led to successful resolutions
 
 ## Configuration Details
 
@@ -288,12 +317,25 @@ Append-only JSONL file with accumulated experiences
 
 ## Usage
 
-### Generate Patches
+### Phase 0: Test & Validate (Run First)
+```bash
+# Test with baseline (no memory)
+SLICE="0:10" CONFIG=config/livesweagent_swebench_no_memory.yaml ./run_gen.sh
+python scripts/analyze_results.py ./results --baseline
+
+# Test with memory enabled
+SLICE="0:10" ./run_gen.sh
+python scripts/analyze_results.py ./results --compare-with-baseline
+
+# Validate improvement before proceeding to full run
+```
+
+### Phase 1: Generate Patches
 ```bash
 ./run_gen.sh
 ```
 
-### Evaluate Patches
+### Phase 2: Evaluate Patches
 ```bash
 ./run_eval.sh
 ```
@@ -313,14 +355,25 @@ python scripts/analyze_results.py
 python scripts/generate_memory_tools.py
 ```
 
+### Verify Memory Generation
+```bash
+# Check that experiences are being generated
+ls -lh ./memory/experiences.jsonl
+wc -l ./memory/experiences.jsonl
+
+# Inspect recent experiences
+tail -5 ./memory/experiences.jsonl | jq .
+```
+
 ## Key Design Principles
 
 ### 1. Learning-First Architecture
 The system is designed around continuous improvement:
-- Every issue contributes to knowledge base
-- Failures are learning opportunities
+- Every issue **MUST** contribute to knowledge base (mandatory, not optional)
+- Failures are learning opportunities (must generate experience records)
 - Success patterns are captured and reused
 - Tools evolve based on needs
+- **Validation required**: Memory must demonstrate improvement on test subset before full deployment
 
 ### 2. Concrete Over Generic
 Experience records must be specific:
@@ -335,6 +388,8 @@ Agent should create tools proactively:
 - Build utilities that improve workflow
 - Specialize tools for current task
 - Persist tools for future use
+- **Generate tools when patterns emerge**: If same operation repeated 3+ times, create a tool
+- Tools must be validated: Track tool usage and effectiveness
 
 ### 4. Experience as Guidance
 Retrieved experiences inform but don't dictate:
@@ -342,6 +397,14 @@ Retrieved experiences inform but don't dictate:
 - Adapt to current context
 - Combine insights from multiple experiences
 - Override when current situation differs
+
+### 5. Mandatory Quality Assurance
+Memory and tools must demonstrate value:
+- **Test before deploy**: Run Phase 0 validation on subset
+- **Measure improvement**: Compare with/without memory on same issues
+- **Track metrics**: Success rate, steps to solution, patch quality
+- **Iterate if needed**: Refine memory generation if no improvement shown
+- **Continuous validation**: Periodically re-validate on new test subsets
 
 ## Extension Points
 
@@ -362,3 +425,69 @@ Modify `memory.retrieval_points` to retrieve at different stages:
 - `start` - Beginning of issue
 - `after_fail` - After failed attempts
 - `before_validate` - Before final validation
+
+## Monitoring & Verification
+
+### Memory Generation Verification
+After each run, verify that memory is being generated properly:
+
+```bash
+# Check experience count
+wc -l ./memory/experiences.jsonl
+
+# Verify recent experiences have required fields
+tail -1 ./memory/experiences.jsonl | jq 'keys'
+
+# Check for both success and failure experiences
+grep '"outcome":"success"' ./memory/experiences.jsonl | wc -l
+grep '"outcome":"failure"' ./memory/experiences.jsonl | wc -l
+
+# Verify experiences are concrete (not generic)
+tail -5 ./memory/experiences.jsonl | jq '.what_worked_or_failed[]'
+```
+
+### Tool Usage Verification
+Track which tools are being created and used:
+
+```bash
+# List generated tools
+ls -lh ./tools/
+
+# Check tool usage in trajectories
+grep -r "python.*tools/" ./results/*.traj.json | wc -l
+
+# Identify most-used tools
+grep -roh "python [^ ]*\.py" ./results/*.traj.json | sort | uniq -c | sort -rn | head -10
+```
+
+### Performance Comparison
+Compare baseline vs memory-augmented performance:
+
+```bash
+# Generate comparison report
+python scripts/analyze_results.py \
+  --baseline ./results/baseline \
+  --memory ./results/with_memory \
+  --output comparison_report.json
+
+# Expected output:
+# {
+#   "baseline": {"success_rate": 0.45, "avg_steps": 87},
+#   "memory": {"success_rate": 0.52, "avg_steps": 73},
+#   "improvement": {"success_rate": "+15.6%", "avg_steps": "-16.1%"}
+# }
+```
+
+### Quality Checks
+Ensure experiences meet quality standards:
+
+```bash
+# Check for generic advice (should be minimal)
+grep -i "check.*log\|read.*doc\|debug\|investigate" ./memory/experiences.jsonl | wc -l
+
+# Verify bullet count (max 6)
+jq '.what_worked_or_failed | length' ./memory/experiences.jsonl | awk '$1 > 6 {print "WARNING: Experience has " $1 " bullets (max 6)"}'
+
+# Check for concrete details (should have line numbers, function names, etc.)
+grep -E "line [0-9]+|function [a-zA-Z_]+|class [a-zA-Z_]+" ./memory/experiences.jsonl | wc -l
+```
