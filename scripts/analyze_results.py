@@ -2,9 +2,10 @@
 """Analyze SWE-bench results and show statistics."""
 import json
 import sys
+import argparse
 from pathlib import Path
 
-def analyze_results(output_dir):
+def analyze_results(output_dir, baseline_dir=None, compare_with_baseline=False):
     """Analyze results and show statistics."""
     output_path = Path(output_dir)
 
@@ -94,6 +95,40 @@ def analyze_results(output_dir):
 
     print("="*50 + "\n")
 
+    # Baseline comparison if requested
+    if baseline_dir and compare_with_baseline:
+        baseline_path = Path(baseline_dir)
+        baseline_report = baseline_path / "report.json"
+
+        if baseline_report.exists() and report_file.exists():
+            print("\n" + "="*50)
+            print("BASELINE COMPARISON")
+            print("="*50)
+
+            with open(baseline_report) as f:
+                baseline_data = json.load(f)
+            with open(report_file) as f:
+                memory_data = json.load(f)
+
+            baseline_rate = (baseline_data.get("resolved", 0) / baseline_data.get("total", 1)) * 100
+            memory_rate = (memory_data.get("resolved", 0) / memory_data.get("total", 1)) * 100
+            improvement = memory_rate - baseline_rate
+
+            print(f"\nBaseline Success Rate: {baseline_rate:.1f}%")
+            print(f"Memory-Augmented Success Rate: {memory_rate:.1f}%")
+            print(f"Improvement: {improvement:+.1f}%")
+
+            if improvement > 0:
+                print("\n✓ Memory system shows improvement!")
+            else:
+                print("\n✗ No improvement detected. Consider adjusting memory generation.")
+            print("="*50 + "\n")
+
 if __name__ == "__main__":
-    output_dir = sys.argv[1] if len(sys.argv) > 1 else "./results"
-    analyze_results(output_dir)
+    parser = argparse.ArgumentParser(description="Analyze SWE-bench results")
+    parser.add_argument("output_dir", nargs="?", default="./results", help="Results directory")
+    parser.add_argument("--baseline", dest="baseline_dir", help="Baseline results directory for comparison")
+    parser.add_argument("--compare-with-baseline", action="store_true", help="Compare with baseline")
+
+    args = parser.parse_args()
+    analyze_results(args.output_dir, args.baseline_dir, args.compare_with_baseline)
